@@ -141,7 +141,7 @@ let burnData={}, foodLog={}, weightLog={}, streak=0;
 
 /* AUTH */
 function login(){
-  loginError.innerText = ""; // clear old error
+  loginError.innerText = "";
 
   auth.signInWithEmailAndPassword(email.value, password.value)
     .then(() => {
@@ -149,22 +149,19 @@ function login(){
     })
     .catch(err => {
 
-      // If user not found → try register
+      // Only register if user does NOT exist
       if (err.code === "auth/user-not-found") {
         auth.createUserWithEmailAndPassword(email.value, password.value)
-          .then(() => {
-            loginError.innerText = "";
-          })
-          .catch(regErr => {
-            loginError.innerText = getAuthErrorMessage(regErr);
+          .catch(e => {
+            loginError.innerText = getAuthErrorMessage(e);
           });
-      } 
-      else {
+      } else {
         loginError.innerText = getAuthErrorMessage(err);
       }
 
     });
 }
+
 
 function logout(){
   if(unsubscribe) unsubscribe();
@@ -395,5 +392,6 @@ function updateGraphs(){
 
 </body>
 </html>
+
 
 
