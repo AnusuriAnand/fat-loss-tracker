@@ -137,8 +137,14 @@ let burnData={}, foodLog={}, weightLog={}, streak=0;
 /* AUTH */
 function login(){
   auth.signInWithEmailAndPassword(email.value,password.value)
-    .catch(()=>auth.createUserWithEmailAndPassword(email.value,password.value));
+    .then(()=>console.log("Login success"))
+    .catch(err=>{
+      console.error("Login error:", err.message);
+      auth.createUserWithEmailAndPassword(email.value,password.value)
+        .catch(e=>console.error("Register error:", e.message));
+    });
 }
+
 function logout(){
   if(unsubscribe) unsubscribe();
   auth.signOut();
@@ -180,12 +186,18 @@ function startSync(){
 }
 
 function syncToCloud(){
-  if(!cloudReady) return;
+  if(!cloudReady || !currentUser) return;
+
   syncStatus.innerText="🟡 Syncing...";
   db.collection("users").doc(currentUser)
     .set({burnData,foodLog,weightLog,streak},{merge:true})
-    .then(()=>syncStatus.innerText="🟢 Synced");
+    .then(()=>syncStatus.innerText="🟢 Synced")
+    .catch(err=>{
+      console.error("Sync error:", err.message);
+      syncStatus.innerText="🔴 Sync error";
+    });
 }
+
 
 /* CALC */
 function calc(){
@@ -290,3 +302,4 @@ function updateGraphs(){
 
 </body>
 </html>
+
