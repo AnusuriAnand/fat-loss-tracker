@@ -16,6 +16,10 @@ let cloudReady=false;
 let currentUser=null;
 let unsubscribe=null;
 
+let cooldownActive = false;
+let cooldownTimer = null;
+let cooldownSeconds = 10;
+
 firebase.initializeApp({
   apiKey: "AIzaSyDUGVlJPlsV0kg_Vb-u2_7vI8sIAqmpVyc",
   authDomain: "fatloss-tracker.firebaseapp.com",
@@ -64,6 +68,7 @@ button{background:#22c55e;border:none;padding:8px 14px;font-weight:bold;cursor:p
 </button>
 <p id="userStatus">Logged out</p>
 <p id="loginError" style="color:#f87171;font-weight:bold"></p>
+<p id="cooldownMsg" style="color:#facc15;font-weight:bold"></p>
 <span id="syncStatus" class="status">🔴 Offline</span>
 </div>
 
@@ -141,7 +146,10 @@ let burnData={}, foodLog={}, weightLog={}, streak=0;
 
 /* AUTH */
 function login(){
+  if(cooldownActive) return;
+
   loginError.innerText = "";
+  cooldownMsg.innerText = "";
 
   auth.signInWithEmailAndPassword(email.value, password.value)
     .then(() => {
@@ -149,17 +157,44 @@ function login(){
     })
     .catch(err => {
 
-      // Only register if user does NOT exist
+      // If user does not exist → try register ONCE
       if (err.code === "auth/user-not-found") {
         auth.createUserWithEmailAndPassword(email.value, password.value)
-          .catch(e => {
-            loginError.innerText = getAuthErrorMessage(e);
-          });
+          .catch(e => handleLoginError(e));
       } else {
-        loginError.innerText = getAuthErrorMessage(err);
+        handleLoginError(err);
       }
 
     });
+}
+
+function handleLoginError(error){
+  loginError.innerText = getAuthErrorMessage(error);
+  startCooldown();
+}
+
+function startCooldown(){
+  cooldownActive = true;
+  let remaining = cooldownSeconds;
+
+  const loginBtn = document.querySelector("button[onclick='login()']");
+  loginBtn.disabled = true;
+  loginBtn.style.opacity = "0.6";
+
+  cooldownMsg.innerText = `⏳ Please wait ${remaining}s before trying again`;
+
+  cooldownTimer = setInterval(() => {
+    remaining--;
+    cooldownMsg.innerText = `⏳ Please wait ${remaining}s before trying again`;
+
+    if (remaining <= 0) {
+      clearInterval(cooldownTimer);
+      cooldownActive = false;
+      cooldownMsg.innerText = "";
+      loginBtn.disabled = false;
+      loginBtn.style.opacity = "1";
+    }
+  }, 1000);
 }
 
 
@@ -392,6 +427,7 @@ function updateGraphs(){
 
 </body>
 </html>
+
 
 
 
