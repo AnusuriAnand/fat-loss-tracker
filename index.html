@@ -58,7 +58,12 @@ button{background:#22c55e;border:none;padding:8px 14px;font-weight:bold;cursor:p
 <input id="password" type="password">
 <button onclick="login()">Login / Register</button>
 <button onclick="logout()" id="logoutBtn" style="display:none;background:#ef4444;color:white">Logout</button>
+<button onclick="resetAllData()"
+        style="background:#ef4444;color:white;margin-top:10px">
+  ♻️ Reset All Data
+</button>
 <p id="userStatus">Logged out</p>
+<p id="loginError" style="color:#f87171;font-weight:bold"></p>
 <span id="syncStatus" class="status">🔴 Offline</span>
 </div>
 
@@ -136,12 +141,28 @@ let burnData={}, foodLog={}, weightLog={}, streak=0;
 
 /* AUTH */
 function login(){
-  auth.signInWithEmailAndPassword(email.value,password.value)
-    .then(()=>console.log("Login success"))
-    .catch(err=>{
-      console.error("Login error:", err.message);
-      auth.createUserWithEmailAndPassword(email.value,password.value)
-        .catch(e=>console.error("Register error:", e.message));
+  loginError.innerText = ""; // clear old error
+
+  auth.signInWithEmailAndPassword(email.value, password.value)
+    .then(() => {
+      loginError.innerText = "";
+    })
+    .catch(err => {
+
+      // If user not found → try register
+      if (err.code === "auth/user-not-found") {
+        auth.createUserWithEmailAndPassword(email.value, password.value)
+          .then(() => {
+            loginError.innerText = "";
+          })
+          .catch(regErr => {
+            loginError.innerText = getAuthErrorMessage(regErr);
+          });
+      } 
+      else {
+        loginError.innerText = getAuthErrorMessage(err);
+      }
+
     });
 }
 
@@ -152,6 +173,7 @@ function logout(){
 
 auth.onAuthStateChanged(user=>{
   if(user){
+    loginError.innerText = "";
     currentUser=user.uid;
     userStatus.innerText="Logged in";
     logoutBtn.style.display="inline-block";
@@ -298,8 +320,80 @@ function updateGraphs(){
       .reduce((a,b)=>+a + +b,0)
       .toFixed(2);
 }
+  function resetAllData(){
+  if(!confirm("⚠️ This will delete ALL your data permanently. Continue?")) return;
+
+  // Clear local memory
+  burnData = {};
+  foodLog = {};
+  weightLog = {};
+  streak = 0;
+  todayBurn = 0;
+
+  // Reset UI
+  totalBurn.innerText = 0;
+  fatLoss.innerText = "0.00";
+  streakEl.innerText = 0;
+  totalProtein.innerText = 0;
+
+  // Reset charts
+  fatChart.data.labels = [];
+  fatChart.data.datasets[0].data = [];
+  fatChart.update();
+
+  weightChart.data.labels = [];
+  weightChart.data.datasets[0].data = [];
+  weightChart.update();
+
+  weeklyTable.innerHTML = "";
+
+  // Clear Firebase cloud data
+  if(currentUser){
+    syncStatus.innerText = "🟡 Resetting...";
+    db.collection("users")
+      .doc(currentUser)
+      .set({
+        burnData: {},
+        foodLog: {},
+        weightLog: {},
+        streak: 0,
+        todayBurn: 0
+      })
+      .then(()=>{
+        syncStatus.innerText = "🟢 Reset complete";
+        alert("✅ All data reset successfully");
+      })
+      .catch(()=>{
+        syncStatus.innerText = "🔴 Reset failed";
+        alert("❌ Reset failed. Check internet.");
+      });
+  }
+}
+
+  function getAuthErrorMessage(error){
+  switch(error.code){
+    case "auth/invalid-email":
+      return "❌ Invalid email format";
+    case "auth/user-disabled":
+      return "❌ This account has been disabled";
+    case "auth/user-not-found":
+      return "❌ No account found with this email";
+    case "auth/wrong-password":
+      return "❌ Incorrect password";
+    case "auth/weak-password":
+      return "❌ Password should be at least 6 characters";
+    case "auth/email-already-in-use":
+      return "❌ Email already registered. Try logging in.";
+    case "auth/network-request-failed":
+      return "❌ Network error. Check your internet.";
+    default:
+      return "❌ Login failed: " + error.message;
+  }
+}
+
 </script>
 
 </body>
 </html>
+
 
