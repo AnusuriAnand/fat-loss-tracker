@@ -12,7 +12,9 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-let cloudReady=false,currentUser=null,unsubscribe=null;
+let cloudReady=false;
+let currentUser=null;
+let unsubscribe=null;
 
 firebase.initializeApp({
   apiKey: "AIzaSyDUGVlJPlsV0kg_Vb-u2_7vI8sIAqmpVyc",
@@ -22,6 +24,7 @@ firebase.initializeApp({
   messagingSenderId: "766635531964",
   appId: "1:766635531964:web:481df4263acb93f48a7ab9"
 });
+
 const auth=firebase.auth();
 const db=firebase.firestore();
 </script>
@@ -31,19 +34,18 @@ body{
   margin:0;
   font-family:Arial;
   background:
-    linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.65)),
+    linear-gradient(rgba(0,0,0,.65), rgba(0,0,0,.65)),
     url("gym-bg.jpg") center/cover no-repeat;
   background-attachment: scroll;
   color:#e5e7eb;
 }
-
 .container{max-width:1100px;margin:auto;padding:15px}
 .card{background:rgba(2,6,23,.75);padding:15px;border-radius:12px;margin-bottom:15px}
 h1,h2{color:#22c55e}
 table{width:100%;border-collapse:collapse}
 th,td{border:1px solid #334155;padding:8px;text-align:center}
 input,select{padding:6px;margin:4px}
-button{background:#22c55e;border:none;padding:8px 14px;font-weight:bold}
+button{background:#22c55e;border:none;padding:8px 14px;font-weight:bold;cursor:pointer}
 .status{font-weight:bold;margin-left:10px}
 </style>
 </head>
@@ -107,7 +109,7 @@ Weight Training <input type="checkbox" id="weights"> (300 kcal)<br><br>
 <h2>📊 Summary</h2>
 <p>Calories Burned Today: <b id="totalBurn">0</b></p>
 <p>Estimated Fat Loss: <b id="fatLoss">0.00</b> kg</p>
-<p>🔥 Streak: <b id="streak">0</b> days</p>
+<p>🔥 Streak: <b id="streakEl">0</b> days</p>
 </div>
 
 <!-- WEEKLY -->
@@ -125,18 +127,22 @@ Weight Training <input type="checkbox" id="weights"> (300 kcal)<br><br>
 </div>
 
 <script>
+/* INIT */
 const days=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 for(let i=1;i<=9;i++)week.innerHTML+=`<option>Week ${i}</option>`;
 days.forEach(d=>day.innerHTML+=`<option>${d}</option>`);
 
-let burnData={},foodLog={},weightLog={},streak=0;
+let burnData={}, foodLog={}, weightLog={}, streak=0;
 
 /* AUTH */
 function login(){
   auth.signInWithEmailAndPassword(email.value,password.value)
     .catch(()=>auth.createUserWithEmailAndPassword(email.value,password.value));
 }
-function logout(){ if(unsubscribe)unsubscribe(); auth.signOut(); }
+function logout(){
+  if(unsubscribe) unsubscribe();
+  auth.signOut();
+}
 
 auth.onAuthStateChanged(user=>{
   if(user){
@@ -154,6 +160,7 @@ auth.onAuthStateChanged(user=>{
 /* SYNC */
 function startSync(){
   syncStatus.innerText="🟡 Syncing...";
+  if(unsubscribe) unsubscribe();
   unsubscribe=db.collection("users").doc(currentUser)
     .onSnapshot(doc=>{
       if(doc.exists){
@@ -164,12 +171,16 @@ function startSync(){
         streak=d.streak||0;
       }
       cloudReady=true;
-      renderFood();updateGraphs();updateWeekly();
+      streakEl.innerText=streak;
+      renderFood();
+      updateWeekly();
+      updateGraphs();
       syncStatus.innerText="🟢 Synced";
     });
 }
+
 function syncToCloud(){
-  if(!cloudReady)return;
+  if(!cloudReady) return;
   syncStatus.innerText="🟡 Syncing...";
   db.collection("users").doc(currentUser)
     .set({burnData,foodLog,weightLog,streak},{merge:true})
@@ -194,8 +205,10 @@ function saveDay(){
   const burn=calc();
   burnData[key]=burn;
   streak=burn>300?streak+1:0;
-  streak.innerText=streak;
-  syncToCloud();updateGraphs();updateWeekly();
+  streakEl.innerText=streak;
+  syncToCloud();
+  updateGraphs();
+  updateWeekly();
 }
 
 /* BMI */
@@ -209,16 +222,18 @@ function saveBMI(){
 /* WEIGHT */
 function saveWeight(){
   weightLog[week.value+"-"+day.value]=dailyWeight.value;
-  syncToCloud();updateGraphs();
+  syncToCloud();
+  updateGraphs();
 }
 
 /* FOOD */
 function addFood(){
   const key=week.value+"-"+day.value;
-  if(!foodLog[key])foodLog[key]=[];
+  if(!foodLog[key]) foodLog[key]=[];
   foodLog[key].push({n:foodName.value,p:+foodProtein.value});
-  foodName.value="";foodProtein.value="";
-  renderFood();syncToCloud();
+  foodName.value=""; foodProtein.value="";
+  renderFood();
+  syncToCloud();
 }
 function renderFood(){
   const key=week.value+"-"+day.value;
@@ -236,28 +251,42 @@ function updateWeekly(){
   weeklyTable.innerHTML="";
   for(let i=1;i<=9;i++){
     let cal=0,prot=0,c=0;
-    for(let k in burnData)if(k.startsWith("Week "+i))cal+=burnData[k];
-    for(let k in foodLog)if(k.startsWith("Week "+i))
+    for(let k in burnData) if(k.startsWith("Week "+i)) cal+=burnData[k];
+    for(let k in foodLog) if(k.startsWith("Week "+i))
       foodLog[k].forEach(f=>{prot+=f.p;c++});
     weeklyTable.innerHTML+=`<tr><td>Week ${i}</td><td>${cal}</td><td>${c?Math.round(prot/c):0}</td></tr>`;
   }
 }
 
 /* GRAPHS */
-const fatChart=new Chart(fatChart,{type:"line",data:{labels:[],datasets:[{data:[]}]}});
-const weightChart=new Chart(weightChart,{type:"line",data:{labels:[],datasets:[{data:[]}]}});
+const fatChartCtx=document.getElementById("fatChart").getContext("2d");
+const weightChartCtx=document.getElementById("weightChart").getContext("2d");
+
+const fatChart=new Chart(fatChartCtx,{
+  type:"line",
+  data:{labels:[],datasets:[{label:"Fat Loss (kg)",data:[],borderWidth:2}]}
+});
+const weightChart=new Chart(weightChartCtx,{
+  type:"line",
+  data:{labels:[],datasets:[{label:"Body Weight (kg)",data:[],borderWidth:2}]}
+});
+
 function updateGraphs(){
   fatChart.data.labels=Object.keys(burnData);
-  fatChart.data.datasets[0].data=Object.values(burnData).map(v=>(v/7700).toFixed(2));
+  fatChart.data.datasets[0].data=
+    Object.values(burnData).map(v=>(v/7700).toFixed(2));
   fatChart.update();
+
   weightChart.data.labels=Object.keys(weightLog);
   weightChart.data.datasets[0].data=Object.values(weightLog);
   weightChart.update();
-  fatLoss.innerText=fatChart.data.datasets[0].data.reduce((a,b)=>+a+ +b,0).toFixed(2);
+
+  fatLoss.innerText =
+    fatChart.data.datasets[0].data
+      .reduce((a,b)=>+a + +b,0)
+      .toFixed(2);
 }
 </script>
 
 </body>
 </html>
-
-
